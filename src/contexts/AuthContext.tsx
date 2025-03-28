@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
@@ -106,7 +107,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signUp = async (email: string, password: string, userData: any) => {
     try {
       setIsLoading(true);
-      const { error, data } = await supabase.auth.signUp({ 
+      
+      // First, create the user account
+      const { data, error } = await supabase.auth.signUp({ 
         email, 
         password,
         options: {
@@ -121,24 +124,48 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         throw error;
       }
       
-      // If user is a service provider, create an entry in the service_providers table
-      if (userData.accountType === 'provider') {
-        await supabase
-          .from('service_providers')
-          .insert({
-            user_id: data.user?.id,
-            business_name: userData.businessName,
-            category: userData.category,
-            description: userData.description,
-            location: userData.location,
-          });
-        
-        setIsProvider(true);
+      if (!data.user) {
+        throw new Error("Failed to create user account");
       }
       
-      toast.success("Account created successfully!");
+      // If user is a service provider, create an entry in the service_providers table
+      if (userData.accountType === 'provider') {
+        try {
+          const { error: providerError } = await supabase
+            .from('service_providers')
+            .insert({
+              user_id: data.user.id,
+              business_name: userData.businessName,
+              category: userData.category,
+              description: userData.description,
+              location: userData.location,
+            });
+          
+          if (providerError) {
+            console.error("Error creating provider profile:", providerError);
+            toast.error("Account created but provider profile wasn't saved. Please contact support.");
+          } else {
+            setIsProvider(true);
+          }
+        } catch (providerError: any) {
+          console.error("Error creating provider profile:", providerError);
+          toast.error("Account created but provider profile wasn't saved. Please contact support.");
+        }
+      }
+      
+      toast.success("Account created successfully! Please check your email to confirm your account.");
     } catch (error: any) {
-      toast.error(error.message || "Sign up failed");
+      console.error("Sign up error:", error);
+      
+      // Better error handling with more specific messages
+      if (error.message.includes("Email")) {
+        toast.error("Invalid email address. Please check and try again.");
+      } else if (error.message.includes("password")) {
+        toast.error("Password issue: " + error.message);
+      } else {
+        toast.error(error.message || "Failed to create account. Please try again.");
+      }
+      
       throw error;
     } finally {
       setIsLoading(false);

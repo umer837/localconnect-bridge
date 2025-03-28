@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from '@/components/Spinner';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { toast } from 'sonner';
 
 const categories = [
   'Photography',
@@ -35,11 +36,16 @@ const SignUp = () => {
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [formError, setFormError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   
   const { signUp, isLoading } = useAuth();
   const navigate = useNavigate();
   
   const validateForm = () => {
+    setPasswordError('');
+    setFormError('');
+    
     if (password !== confirmPassword) {
       setPasswordError('Passwords do not match');
       return false;
@@ -50,7 +56,38 @@ const SignUp = () => {
       return false;
     }
     
-    setPasswordError('');
+    if (!fullName.trim()) {
+      setFormError('Please enter your full name');
+      return false;
+    }
+    
+    if (!email.trim()) {
+      setFormError('Please enter your email address');
+      return false;
+    }
+    
+    if (accountType === 'provider') {
+      if (!businessName.trim()) {
+        setFormError('Please enter your business name');
+        return false;
+      }
+      
+      if (!category) {
+        setFormError('Please select a service category');
+        return false;
+      }
+      
+      if (!description.trim()) {
+        setFormError('Please provide a business description');
+        return false;
+      }
+      
+      if (!location.trim()) {
+        setFormError('Please enter your location');
+        return false;
+      }
+    }
+    
     return true;
   };
   
@@ -62,6 +99,8 @@ const SignUp = () => {
     }
     
     try {
+      setSubmitting(true);
+      
       await signUp(email, password, {
         fullName,
         phone,
@@ -72,9 +111,14 @@ const SignUp = () => {
         location: accountType === 'provider' ? location : undefined,
       });
       
-      navigate('/dashboard');
-    } catch (error) {
+      // Navigate to dashboard only after successful sign up
+      toast.success("Account created! You may need to confirm your email before signing in.");
+      navigate('/sign-in');
+    } catch (error: any) {
       console.error('Sign up error:', error);
+      setFormError(error.message || 'Failed to create account. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
   };
   
@@ -93,6 +137,12 @@ const SignUp = () => {
               </Link>
             </p>
           </div>
+          
+          {formError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+              {formError}
+            </div>
+          )}
           
           <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
             <div className="space-y-4">
@@ -117,7 +167,7 @@ const SignUp = () => {
               </div>
               
               <div>
-                <Label htmlFor="fullName">Full Name</Label>
+                <Label htmlFor="fullName">Full Name *</Label>
                 <Input
                   id="fullName"
                   name="fullName"
@@ -130,7 +180,7 @@ const SignUp = () => {
               </div>
               
               <div>
-                <Label htmlFor="email">Email address</Label>
+                <Label htmlFor="email">Email address *</Label>
                 <Input
                   id="email"
                   name="email"
@@ -144,7 +194,7 @@ const SignUp = () => {
               </div>
               
               <div>
-                <Label htmlFor="phone">Phone Number</Label>
+                <Label htmlFor="phone">Phone Number *</Label>
                 <Input
                   id="phone"
                   name="phone"
@@ -159,7 +209,7 @@ const SignUp = () => {
               {accountType === 'provider' && (
                 <>
                   <div>
-                    <Label htmlFor="businessName">Business Name</Label>
+                    <Label htmlFor="businessName">Business Name *</Label>
                     <Input
                       id="businessName"
                       name="businessName"
@@ -172,7 +222,7 @@ const SignUp = () => {
                   </div>
                   
                   <div>
-                    <Label htmlFor="category">Category</Label>
+                    <Label htmlFor="category">Category *</Label>
                     <Select value={category} onValueChange={setCategory} required>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a category" />
@@ -186,7 +236,7 @@ const SignUp = () => {
                   </div>
                   
                   <div>
-                    <Label htmlFor="description">Business Description</Label>
+                    <Label htmlFor="description">Business Description *</Label>
                     <Textarea
                       id="description"
                       name="description"
@@ -199,7 +249,7 @@ const SignUp = () => {
                   </div>
                   
                   <div>
-                    <Label htmlFor="location">Location in Peshawar</Label>
+                    <Label htmlFor="location">Location in Peshawar *</Label>
                     <Input
                       id="location"
                       name="location"
@@ -214,7 +264,7 @@ const SignUp = () => {
               )}
               
               <div>
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">Password *</Label>
                 <Input
                   id="password"
                   name="password"
@@ -225,10 +275,11 @@ const SignUp = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   className="mt-1"
                 />
+                <p className="text-xs text-gray-500 mt-1">Must be at least 6 characters</p>
               </div>
               
               <div>
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Label htmlFor="confirmPassword">Confirm Password *</Label>
                 <Input
                   id="confirmPassword"
                   name="confirmPassword"
@@ -249,9 +300,9 @@ const SignUp = () => {
               <Button
                 type="submit"
                 className="w-full bg-marketplace-primary hover:bg-marketplace-secondary"
-                disabled={isLoading}
+                disabled={isLoading || submitting}
               >
-                {isLoading ? (
+                {(isLoading || submitting) ? (
                   <div className="flex items-center justify-center">
                     <Spinner size="sm" className="mr-2" />
                     <span>Creating account...</span>
