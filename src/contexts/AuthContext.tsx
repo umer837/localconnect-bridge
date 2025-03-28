@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
@@ -24,45 +23,66 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        checkUserRole(session.user.id);
-      }
-      
-      setIsLoading(false);
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+    const getInitialSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
           checkUserRole(session.user.id);
         }
-        
+      } catch (error) {
+        console.error('Error retrieving session:', error);
+        toast.error('Unable to connect to authentication service');
+      } finally {
         setIsLoading(false);
       }
-    );
-
-    return () => {
-      subscription.unsubscribe();
     };
+
+    getInitialSession();
+
+    // Listen for auth changes
+    try {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        (_event, session) => {
+          setSession(session);
+          setUser(session?.user ?? null);
+          
+          if (session?.user) {
+            checkUserRole(session.user.id);
+          } else {
+            setIsProvider(false);
+          }
+          
+          setIsLoading(false);
+        }
+      );
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    } catch (error) {
+      console.error('Error setting up auth listener:', error);
+      setIsLoading(false);
+      return () => {};
+    }
   }, []);
 
   // Check if user is a service provider
   const checkUserRole = async (userId: string) => {
-    const { data } = await supabase
-      .from('service_providers')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-    
-    setIsProvider(!!data);
+    try {
+      const { data } = await supabase
+        .from('service_providers')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+      
+      setIsProvider(!!data);
+    } catch (error) {
+      console.error('Error checking user role:', error);
+      setIsProvider(false);
+    }
   };
 
   const signIn = async (email: string, password: string) => {
